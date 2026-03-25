@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מחולל פוסטים — Banknote</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+:root {
+  --bg: #f0eeea;
+  --surface: #ffffff;
+  --surface2: #f7f6f3;
+  --border: #e2dfd8;
+  --ink: #1c1a17;
+  --ink2: #5a564f;
+  --ink3: #9b9690;
+  --accent: #c17f3b;
+  --accent-soft: #fdf3e7;
+  --accent-mid: #edd5b0;
+  --blue: #3b72c1;
+  --blue-soft: #eaf0fb;
+  --green: #3b8c5a;
+  --green-soft: #eaf5ef;
+  --red-soft: #fbeaea;
+  --red: #c13b3b;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-3d: 0 4px 0 #d4cfc7, 0 8px 24px rgba(0,0,0,0.10);
+  --r: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  min-height: 100vh;
+  line-height: 1.6;
+  zoom: 1.5;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0;
+}
+
+/* HEADER */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 48px; height: 64px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0,0,0,0.04);
+}
+.header-left { display: flex; align-items: center; gap: 14px; }
+.logo {
+  width: 36px; height: 36px; background: var(--ink);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Sans', sans-serif; font-size: 16px; color: white; font-weight: 600;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.15);
+  transform: perspective(100px) rotateX(2deg);
+}
+.header-title { font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 600; color: var(--ink); }
+.header-sub { font-size: 12px; color: var(--ink3); font-weight: 400; }
+
+.api-badge {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px 6px 10px;
+  cursor: pointer; transition: all 0.2s;
+}
+.api-badge:hover { border-color: var(--accent); background: var(--accent-soft); }
+.api-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+.api-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(59,140,90,0.5); }
+.api-dot.bad { background: var(--red); }
+.api-badge-label { font-size: 12px; color: var(--ink2); font-weight: 500; }
+
+/* MODAL */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3); backdrop-filter: blur(4px);
+  z-index: 1000; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border-radius: 20px; padding: 32px;
+  width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  animation: modalIn 0.25s ease;
+}
+@keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(-8px); } to { opacity:1; transform:none; } }
+.modal h3 { font-family: 'DM Sans', sans-serif; font-size: 20px; margin-bottom: 6px; }
+.modal p { font-size: 13px; color: var(--ink2); margin-bottom: 20px; line-height: 1.5; }
+.modal input {
+  width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: 10px; color: var(--ink); font-family: 'Courier New', monospace;
+  font-size: 13px; padding: 12px 14px; direction: ltr; text-align: left;
+  margin-bottom: 12px; transition: border-color 0.2s;
+}
+.modal input:focus { outline: none; border-color: var(--accent); }
+.modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+.btn-save {
+  background: var(--ink); border: none; border-radius: 9px;
+  color: white; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+  padding: 10px 20px; cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.25); transition: all 0.15s;
+}
+.btn-save:hover { transform: translateY(-1px); }
+.btn-save:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,0.25); }
+.btn-cancel {
+  background: none; border: 1.5px solid var(--border); border-radius: 9px;
+  color: var(--ink2); font-family: 'DM Sans', sans-serif; font-size: 14px;
+  padding: 10px 18px; cursor: pointer; transition: all 0.15s;
+}
+.btn-cancel:hover { border-color: var(--ink2); }
+
+/* MAIN */
+.container { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; position: relative; z-index: 1; }
+
+.card {
+  background: var(--surface); border-radius: var(--r);
+  box-shadow: var(--shadow-3d); border: 1px solid var(--border);
+  margin-bottom: 20px;
+  transform: perspective(1000px) rotateX(0.5deg);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.card:hover {
+  box-shadow: 0 6px 0 #cac5bc, 0 12px 32px rgba(0,0,0,0.12);
+  transform: perspective(1000px) rotateX(0.3deg) translateY(-1px);
+}
+
+.card-strip {
+  padding: 18px 24px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.strip-left { display: flex; flex-direction: column; gap: 2px; }
+.strip-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink3); }
+.strip-title { font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--ink); }
+
+/* ── DUAL IMAGE UPLOAD ─────────────────────────── */
+.images-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 20px 24px;
+}
+
+.upload-slot {
+  position: relative;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  min-height: 130px;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  gap: 6px; cursor: pointer; transition: all 0.2s;
+  background: var(--surface2); overflow: hidden;
+  text-align: center;
+}
+.upload-slot:hover { border-color: var(--accent); background: var(--accent-soft); }
+.upload-slot.has-img { border-style: solid; border-color: var(--accent-mid); min-height: auto; padding: 10px; }
+.upload-slot.optional { border-style: dashed; }
+.upload-slot input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2; width: 100%; height: 100%; }
+.slot-icon { font-size: 24px; }
+.slot-label { font-size: 13px; font-weight: 500; color: var(--ink2); }
+.slot-sub { font-size: 11px; color: var(--ink3); }
+.slot-badge {
+  position: absolute; top: 8px; right: 8px;
+  background: var(--ink); color: white; font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 4px; letter-spacing: 0.04em;
+  z-index: 3;
+}
+.slot-badge.opt { background: var(--ink3); }
+.slot-preview { display: none; max-width: 100%; max-height: 150px; object-fit: contain; border-radius: 7px; }
+.slot-remove {
+  display: none; position: absolute; top: 6px; left: 6px; z-index: 4;
+  background: rgba(0,0,0,0.55); border: none; border-radius: 5px;
+  color: white; font-size: 11px; padding: 3px 8px; cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+}
+.slot-download {
+  display: none; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); z-index: 4;
+  background: var(--green); border: none; border-radius: 5px;
+  color: white; font-size: 11px; padding: 4px 10px; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+.slot-download:hover { background: #2f7a4d; }
+.drive-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--blue-soft); border: 1.5px solid #c5d8f5;
+  border-radius: 7px; color: var(--blue);
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+  padding: 5px 11px; cursor: pointer; transition: all 0.15s;
+  margin-top: 4px; z-index: 3; position: relative;
+}
+.drive-btn:hover { background: #d8e8fb; border-color: var(--blue); }
+
+/* FIELDS */
+.fields-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink3); margin-bottom: 6px;
+}
+.field textarea, .field input[type=text] {
+  width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: 10px; color: var(--ink); font-family: 'DM Sans', sans-serif;
+  font-size: 14px; font-weight: 400; padding: 11px 13px; resize: vertical;
+  transition: border-color 0.2s, box-shadow 0.2s; direction: rtl; line-height: 1.5;
+}
+.field textarea:focus, .field input[type=text]:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(193,127,59,0.12);
+}
+.field textarea::placeholder, .field input::placeholder { color: var(--ink3); }
+.field textarea { min-height: 80px; }
+
+.hint { font-size: 12px; color: var(--ink3); padding: 0 24px 16px; }
+
+/* GENERATE BTN */
+.gen-btn {
+  margin: 0 24px 24px; width: calc(100% - 48px); padding: 16px;
+  background: var(--ink); border: none; border-radius: 12px; color: white;
+  font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 600;
+  cursor: pointer; box-shadow: 0 4px 0 rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.12);
+  transition: all 0.15s; letter-spacing: 0.01em;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.gen-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 0 rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.14); }
+.gen-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+.gen-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-bar { margin: 0 24px 14px; background: var(--red-soft); border: 1px solid rgba(193,59,59,0.2); border-radius: 10px; padding: 12px 16px; color: var(--red); font-size: 13px; display: none; }
+.status-line { text-align: center; font-size: 13px; color: var(--ink3); padding: 8px 24px 0; display: none; }
+.status-line.on { display: block; }
+
+/* RESULTS */
+.results { display: flex; flex-direction: column; gap: 13px; }
+.result-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden; box-shadow: var(--shadow-sm);
+  animation: fadeUp 0.3s ease forwards; opacity: 0;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+.rc-head {
+  padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2); border-bottom: 1px solid var(--border);
+}
+.rc-label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); }
+.rc-icon { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.ic-title{background:#f5e6d0;} .ic-meta{background:var(--blue-soft);} .ic-tags{background:#edf5e8;}
+.ic-alt{background:#f0edf5;} .ic-mj{background:#e8f5f0;} .ic-article{background:#fdf3e7;}
+
+.copy-btn {
+  background: white; border: 1.5px solid var(--border); border-radius: 7px;
+  color: var(--ink2); font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
+  padding: 5px 13px; cursor: pointer; transition: all 0.15s;
+  box-shadow: 0 1px 0 var(--border);
+}
+.copy-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.copy-btn:active { transform: translateY(1px); box-shadow: none; }
+.copy-btn.done { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+
+.rc-body { padding: 16px 20px; font-size: 14px; line-height: 1.85; color: var(--ink); white-space: pre-wrap; direction: rtl; }
+.rc-body.article { max-height: 380px; overflow-y: auto; font-size: 14px; line-height: 1.9; }
+.rc-body.article::-webkit-scrollbar { width: 4px; }
+.rc-body.article::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.tags-wrap { padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 7px; }
+.tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 13px; color: var(--ink2); transition: all 0.15s; cursor: default; }
+.tag:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.prompt-body { padding: 16px 20px; font-family: 'Courier New', monospace; font-size: 12.5px; line-height: 1.7; color: #2d7a4f; direction: ltr; text-align: left; background: #f2faf6; }
+
+.copy-all-row { display: none; margin-bottom: 16px; }
+.copy-all-btn {
+  width: 100%; background: white; border: 1.5px solid var(--border); border-radius: 12px;
+  color: var(--ink2); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  padding: 13px; cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
+}
+.copy-all-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">ב</div>
+    <div>
+      <div class="header-title">מחולל פוסטים</div>
+      <div class="header-sub">banknote.co.il</div>
+    </div>
+  </div>
+  <div class="api-badge" onclick="openModal()">
+    <div class="api-dot" id="api-dot"></div>
+    <span class="api-badge-label" id="api-badge-label">הגדר API Key</span>
+  </div>
+</header>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeOut(event)">
+  <div class="modal">
+    <h3>Claude API Key</h3>
+    <p>נשמר לצמיתות בדפדפן שלך (localStorage) — לא נשלח לשום מקום חוץ מ-Anthropic.</p>
+    <input type="password" id="modal-key" placeholder="sk-ant-api03-..." autocomplete="off">
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">ביטול</button>
+      <button class="btn-save" onclick="saveKey()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="card">
+
+    <!-- Images -->
+    <div class="card-strip">
+      <div class="strip-left">
+        <span class="strip-eyebrow">שלב 1</span>
+        <span class="strip-title">תמונות הפריט</span>
+      </div>
+    </div>
+
+    <div class="images-grid">
+      <!-- Slot 1 — main -->
+      <div class="upload-slot" id="slot1">
+        <input type="file" accept="image/*" onchange="handleImg(event,1)">
+        <button class="slot-remove" id="rm1" onclick="removeImg(event,1)">✕ הסר</button>
+        <button class="slot-download" id="dl1" onclick="downloadWebP(event,1)">↓ WebP</button>
+        <span class="slot-badge">חזית</span>
+        <img class="slot-preview" id="prev1" alt="">
+        <div class="slot-ph" id="ph1">
+          <div class="slot-icon">🖼️</div>
+          <div class="slot-label">תמונה ראשית</div>
+          <div class="slot-sub">חזית / צד א׳</div>
+          <button class="drive-btn" onclick="openDrivePicker(event,1)">📂 בחר מ-Drive</button>
+        </div>
+      </div>
+
+      <!-- Slot 2 — optional back -->
+      <div class="upload-slot optional" id="slot2">
+        <input type="file" accept="image/*" onchange="handleImg(event,2)">
+        <button class="slot-remove" id="rm2" onclick="removeImg(event,2)">✕ הסר</button>
+        <button class="slot-download" id="dl2" onclick="downloadWebP(event,2)">↓ WebP</button>
+        <span class="slot-badge opt">גב — אופציונלי</span>
+        <img class="slot-preview" id="prev2" alt="">
+        <div class="slot-ph" id="ph2">
+          <div class="slot-icon">🔄</div>
+          <div class="slot-label">תמונת גב</div>
+          <div class="slot-sub">גב / צד ב׳ (לא חובה)</div>
+          <button class="drive-btn" onclick="openDrivePicker(event,2)">📂 בחר מ-Drive</button>
+        </div>
+      </div>
+    </div>
+
+    <p class="hint">💡 עם תמונות — קלוד מזהה ומתאר לבד. ללא תמונה — הסתמך על התיאור הכתוב.</p>
+
+    <!-- Details -->
+    <div class="card-strip" style="border-top:1px solid var(--border);">
+      <div class="strip-left">
+        <span class="strip-eyebrow">שלב 2</span>
+        <span class="strip-title">פרטים נוספים</span>
+      </div>
+    </div>
+
+    <div class="fields-body">
+      <div class="field">
+        <label>תיאור / הקשר (חובה אם אין תמונה)</label>
+        <textarea id="item-desc" placeholder="לדוגמה: שטר חירום גרמני (נוטגלד) מ-1923, הודפס בבד. עיריית ביילפלד. תקופת האינפלציה הגדולה.&#10;או: בול ישראלי מ-1948, סדרת המטוסים, שגיאת דפוס נדירה.&#10;או: ז׳טון אוטובוס ישראלי שנות ה-70."></textarea>
+      </div>
+      <div class="field">
+        <label>זווית / סיפור שמעניין אותך (אופציונלי)</label>
+        <textarea id="angle" placeholder="לדוגמה: הזווית המרתקת היא שהכסף עצמו איבד ערך מהר יותר מכל הדפסה..." style="min-height:60px;"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>קטגוריה</label>
+          <input type="text" id="category" placeholder="שטרות / מטבעות / בולים / אמצעי תשלום">
+        </div>
+        <div class="field">
+          <label>מילות מפתח SEO</label>
+          <input type="text" id="keywords" placeholder="לדוגמה: אינפלציה גרמנית, נוטגלד">
+        </div>
+      </div>
+    </div>
+
+    <div class="error-bar" id="error-bar"></div>
+    <div class="status-line" id="status-line"></div>
+
+    <button class="gen-btn" id="gen-btn" onclick="generate()">
+      <span id="btn-text">✦ ייצר חומרים לפוסט</span>
+    </button>
+
+  </div><!-- /card -->
+
+  <div class="copy-all-row" id="copy-all-row">
+    <button class="copy-all-btn" onclick="copyAll()">↓ העתק הכל לקליפבורד</button>
+  </div>
+  <div class="results" id="results"></div>
+</div>
+
+<script>
+// ── API KEY ──────────────────────────────────────────────
+let apiKey = localStorage.getItem('bnk_api_key') || '';
+updateKeyUI();
+
+function openModal() { document.getElementById('modal-key').value = apiKey; document.getElementById('modal-overlay').classList.add('open'); setTimeout(()=>document.getElementById('modal-key').focus(),100); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeOut(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+function saveKey() { apiKey=document.getElementById('modal-key').value.trim(); localStorage.setItem('bnk_api_key',apiKey); updateKeyUI(); closeModal(); }
+function updateKeyUI() {
+  const dot=document.getElementById('api-dot'), lbl=document.getElementById('api-badge-label');
+  if(apiKey.startsWith('sk-ant-')){ dot.className='api-dot ok'; lbl.textContent='API מוכן ✓'; }
+  else if(apiKey.length>0){ dot.className='api-dot bad'; lbl.textContent='מפתח לא תקין'; }
+  else { dot.className='api-dot'; lbl.textContent='הגדר API Key'; }
+}
+document.getElementById('modal-key').addEventListener('keydown',e=>{ if(e.key==='Enter') saveKey(); });
+
+// ── IMAGES ───────────────────────────────────────────────
+const imgs = { 1: { b64: null, mime: null }, 2: { b64: null, mime: null } };
+const webpBlobs = { 1: null, 2: null };
+
+// ── GOOGLE DRIVE PICKER ──────────────────────────────────
+const GAPI_KEY    = 'AIzaSyCcsNvfgxlBLkyg8SRO6Gs2yi44VipbG4s';
+const CLIENT_ID   = '854067952718-m0pdh0b6159ditbt0o74qj0ld8m6ssp2.apps.googleusercontent.com';
+const SCOPES      = 'https://www.googleapis.com/auth/drive.readonly';
+let   pickerApiLoaded = false;
+let   oauthToken      = null;
+let   activePickerSlot = 1;
+
+function loadPickerApi() {
+  return new Promise(resolve => {
+    if (pickerApiLoaded) { resolve(); return; }
+    gapi.load('picker', () => { pickerApiLoaded = true; resolve(); });
+  });
+}
+
+function getOAuthToken() {
+  return new Promise((resolve, reject) => {
+    if (oauthToken) { resolve(oauthToken); return; }
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: resp => {
+        if (resp.error) { reject(resp.error); return; }
+        oauthToken = resp.access_token;
+        resolve(oauthToken);
+      }
+    });
+    client.requestAccessToken({ prompt: 'consent' });
+  });
+}
+
+async function openDrivePicker(e, slot) {
+  e.preventDefault(); e.stopPropagation();
+  activePickerSlot = slot;
+  try {
+    await loadPickerApi();
+    const token = await getOAuthToken();
+    const view = new google.picker.View(google.picker.ViewId.DOCS_IMAGES);
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(token)
+      .setDeveloperKey(GAPI_KEY)
+      .setCallback(pickerCallback)
+      .build();
+    picker.setVisible(true);
+  } catch(err) {
+    alert('שגיאה בפתיחת Drive: ' + err);
+  }
+}
+
+async function pickerCallback(data) {
+  if (data.action !== google.picker.Action.PICKED) return;
+  const file = data.docs[0];
+  const fileId = file.id;
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${oauthToken}` } }
+    );
+    if (!resp.ok) throw new Error('שגיאה בהורדת קובץ מ-Drive');
+    const blob = await resp.blob();
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const src = ev.target.result;
+      const slot = activePickerSlot;
+      document.getElementById('prev'+slot).src = src;
+      document.getElementById('prev'+slot).style.display = 'block';
+      document.getElementById('ph'+slot).style.display = 'none';
+      document.getElementById('rm'+slot).style.display = 'block';
+      document.getElementById('dl'+slot).style.display = 'block';
+      document.getElementById('slot'+slot).classList.add('has-img');
+      compressImage(src, slot);
+    };
+    reader.readAsDataURL(blob);
+  } catch(err) {
+    alert('שגיאה: ' + err.message);
+  }
+}
+
+function handleImg(e, slot) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const src = ev.target.result;
+    // show preview immediately
+    document.getElementById('prev'+slot).src = src;
+    document.getElementById('prev'+slot).style.display = 'block';
+    document.getElementById('ph'+slot).style.display = 'none';
+    document.getElementById('rm'+slot).style.display = 'block';
+    document.getElementById('dl'+slot).style.display = 'block';
+    document.getElementById('slot'+slot).classList.add('has-img');
+    // compress via canvas before storing
+    compressImage(src, slot);
+  };
+  reader.readAsDataURL(file);
+}
+
+function compressImage(src, slot) {
+  const img = new Image();
+  img.onload = () => {
+    const MAX_PX = 1600;
+    const MAX_BYTES = 4.5 * 1024 * 1024;
+    let { width, height } = img;
+    if (width > MAX_PX || height > MAX_PX) {
+      const ratio = Math.min(MAX_PX / width, MAX_PX / height);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+    let quality = 0.85;
+    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+    while (dataUrl.length * 0.75 > MAX_BYTES && quality > 0.3) {
+      quality -= 0.1;
+      dataUrl = canvas.toDataURL('image/jpeg', quality);
+    }
+    imgs[slot].b64 = dataUrl.split(',')[1];
+    imgs[slot].mime = 'image/jpeg';
+    canvas.toBlob(blob => { webpBlobs[slot] = blob; }, 'image/webp', 0.85);
+  };
+  img.src = src;
+}
+
+function removeImg(e, slot) {
+  e.preventDefault(); e.stopPropagation();
+  imgs[slot].b64 = null; imgs[slot].mime = null;
+  webpBlobs[slot] = null;
+  document.getElementById('prev'+slot).style.display = 'none';
+  document.getElementById('prev'+slot).src = '';
+  document.getElementById('ph'+slot).style.display = 'flex';
+  document.getElementById('rm'+slot).style.display = 'none';
+  document.getElementById('dl'+slot).style.display = 'none';
+  document.getElementById('slot'+slot).classList.remove('has-img');
+  document.getElementById('slot'+slot).querySelector('input').value = '';
+}
+
+function downloadWebP(e, slot) {
+  e.preventDefault(); e.stopPropagation();
+  const blob = webpBlobs[slot];
+  if (!blob) return;
+  const name = slot === 1 ? 'front.webp' : 'back.webp';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── SYSTEM PROMPT ────────────────────────────────────────
+const SYS = `אתה עורך תוכן מנוסה של אתר banknote.co.il — אתר עברי המיועד לקהל הישראלי הרחב, העוסק בתחומים הבאים:
+- שטרות כסף — ישראלים ובינלאומיים
+- מטבעות — עתיקים ומודרניים
+- בולים ודואר — ישראלי ובינלאומי, כולל בולים נדירים, שגיאות דפוס, מעטפות יום ראשון
+- אמצעי תשלום נוספים — ז'טונים, כרטיסי אשראי היסטוריים, שוברים, כסף חירום, קופונים ועוד
+
+## דיוק עובדתי — כלל עליון
+
+חוק הברזל: אל תמציא שום פרט. לעולם לא.
+
+לפני כתיבת הכתבה — חפש מידע על הפריט. תמיד. גם אם אתה מכיר אותו.
+חפש: שם הפריט, שנה, מדינה, מנפיק, מעצב, הקשר היסטורי, ערך אספנות, פרטים ייחודיים.
+
+אם לא מצאת מידע מספיק על פרט מסוים — כתוב "לא ידוע" או השמט אותו לחלוטין.
+אסור בהחלט: לנחש תאריכים, להמציא שמות, לפברק נתונים, לכתוב "כנראה" על דברים שאתה לא בטוח בהם.
+אם יש אי-ודאות — ציין אותה במפורש בכתבה ("לא ידוע מי עיצב", "אין תיעוד מדויק לתאריך").
+
+## עקרונות כתיבה
+
+קהל יעד: קהל רחב, לא מומחים. הכתבה חייבת לעניין גם מי שנתקל בנושא לראשונה.
+
+טון וסגנון:
+- פורמלי אך מעניין — מקצועי אבל לא מייבש
+- זורם וקולח — פרוזה טבעית, ללא רשימות נקודות
+- אין שאלות רטוריות — רק משפטים הצהרתיים
+- אין ביטויים ציוריים מוגזמים
+- עברית של היום, לא ארכאית
+- כשרלוונטי — הסבר מונחים כמו: פילטליה, נומיסמטיקה, ערך נקוב, מהדורה, טאב, גימיק פילטלי, שגיאת דפוס
+
+מבנה הכתבה:
+1. פתיחה מושכת — פרט מפתיע, רגע ספציפי בזמן. לא הקדמה כללית.
+2. הצגת הפריט/תופעה — בצורה דרמטית, הדרגתית
+3. הסיפור האנושי — הלב: מי האנשים, מה הניע אותם
+4. הקשר היסטורי ומקום
+5. פרטים טכניים מפושטים עם אנלוגיות
+6. החיים השניים — מה קרה אחר כך, ערך אספנות
+7. סיום מעורר מחשבה — תובנה על הטבע האנושי
+
+כללים קריטיים:
+- אל תתחיל בהקדמה כללית — צלול ישר לסיפור
+- אל תשתמש בשאלות רטוריות לעולם
+- אל תכתוב רשימות — רק פרוזה זורמת
+- הסבר כל מונח מקצועי מיד
+- הקשר מספרים לחוויה
+- אורך: 700-920 מילים
+- כלול 2-3 כותרות ביניים
+- השתמש במקף קצר (-) בלבד. אין להשתמש במקף ארוך (— או –) בשום מקום בכתבה
+
+אם סופקו שתי תמונות (חזית וגב) — התייחס לשניהן בכתבה ובתיאור ALT.
+
+## דוגמאות לסגנון הנכון
+
+### דוגמה א׳ (מ"סופו של הסנט האמריקאי"):
+ב-1793, היה אפשר לקנות עם סנט אמריקאי אחד עוגיה טרייה. המטבע החדש, שהוטבע בפעם הראשונה שנה קודם לכן במסגרת חוק המטבעות של 1792, היה חלק מהניסוי הדמוקרטי המרגש של האומה הצעירה. הוא ייצג את הרעיון שכל אזרח, עני או עשיר, יכול להחזיק בכסף האומה בכיסו.
+
+כעבור 232 שנים, באותה מטבעה בפילדלפיה, הוטבע הסנט האחרון. אבל להבדיל מהתרגשות של 1792, הפעם המשמעות הייתה שונה לחלוטין: עם סנט בודד כבר לא ניתן לקנות כלום. מה שהוא כן עולה הוא 3.69 סנט — עלות הייצור האמיתית שלו.
+
+### דוגמה ב׳ (מ"שטר 500 פרנק — מארי קירי"):
+יש משהו מיוחד בשטר 500 פרנק צרפתי משנת 1994. אם מחזיקים אותו מתחת לאור אולטרה-סגול, סמל כימי מסוים מתחיל לזרוח בירוק: Ra — רדיום, מספר אטומי 88. זהו יסוד כימי שהתגלה על ידי האישה המופיעה על השטר: מארי קירי.
+
+הבחירה בדיו פלואורסצנטי לא הייתה מקרית. המעצב, רוג'ר פפונד, רצה שהשטר עצמו יזרח — בדיוק כמו מלחי הרדיום שמארי קירי נהגה לשמור ליד המיטה שלה. אותו אור מופלא הביא בסופו של דבר למותה ב-1934.
+
+---
+
+## הנחיות לפרומפט Midjourney
+צור 3 פרומפטים שונים לחלוטין — לא ווריאציות אלא רעיונות שונים (זווית אחרת, רגע אחר, מיקוד שונה).
+- כל פרומפט מתחיל ב: 3d Pixar-style illustration,
+- כל פרומפט מסתיים ב: --ar 16:9
+- העדף דמות ילד/ה אחת חמודה, או אדם נחמד אחד במרכז — לא קבוצות גדולות
+- אם הדמות ההיסטורית אינה מרושעת — הוסף: friendly, cute, adorable או charming
+- שלוש סצינות עם אווירה ומיקוד שונים, לא אותה תמונה בצבעים אחרים
+לאחר שסיימת לחקור — החזר JSON בלבד. אפילו אם חיפשת מידע, הפלט הסופי חייב להיות JSON נקי בלבד, ללא טקסט לפניו או אחריו, ללא markdown:
+
+{
+  "title": "כותרת מושכת עד 60 תווים",
+  "meta": "מטא תיאור 140-155 תווים עם מילות מפתח SEO",
+  "tags": ["תגית1","תגית2","תגית3","תגית4","תגית5"],
+  "alt_front": "תיאור ALT לתמונת החזית, עד 100 תווים",
+  "alt_back": "תיאור ALT לתמונת הגב, עד 100 תווים — אם לא סופקה תמונת גב, השמט שדה זה לחלוטין",
+  "midjourney": [
+    "3d Pixar-style illustration, [תיאור סצינה ראשונה באנגלית עם דמות ילד/ה חמוד/ה אחת במרכז], warm soft lighting, friendly cute character, detailed --ar 16:9",
+    "3d Pixar-style illustration, [תיאור סצינה שנייה שונה לחלוטין מהראשונה, זווית אחרת או רגע אחר מהסיפור, עם דמות נחמדת במרכז], warm cinematic lighting, charming character --ar 16:9",
+    "3d Pixar-style illustration, [תיאור סצינה שלישית עם גישה יצירתית שונה, אולי מטאפורית או סמלית, עם ילד/ה או דמות חמודה], soft warm tones, adorable character --ar 16:9"
+  ],
+  "article": "הכתבה המלאה, פסקאות מופרדות בירידת שורה כפולה, עם 2-3 כותרות ביניים ## כותרת"
+}`;
+
+// ── GENERATE ─────────────────────────────────────────────
+async function generate() {
+  if (!apiKey.startsWith('sk-ant-')) { openModal(); return; }
+  const desc = document.getElementById('item-desc').value.trim();
+  if (!desc && !imgs[1].b64) { showError('נא להעלות תמונה ראשית או לכתוב תיאור'); return; }
+
+  const angle = document.getElementById('angle').value.trim();
+  const cat = document.getElementById('category').value.trim();
+  const kw = document.getElementById('keywords').value.trim();
+  const hasBack = !!imgs[2].b64;
+
+  const txt = [
+    desc ? `תיאור הפריט: ${desc}` : 'זהה את הפריט מהתמונה.',
+    hasBack ? 'סופקו שתי תמונות: חזית וגב — התייחס לשניהן.' : '',
+    angle ? `זווית: ${angle}` : '',
+    cat ? `קטגוריה: ${cat}` : '',
+    kw ? `מילות מפתח: ${kw}` : ''
+  ].filter(Boolean).join('\n');
+
+  const content = [];
+  if (imgs[1].b64) content.push({ type:'image', source:{ type:'base64', media_type:imgs[1].mime, data:imgs[1].b64 }, cache_control:{ type:'ephemeral' } });
+  if (imgs[2].b64) content.push({ type:'image', source:{ type:'base64', media_type:imgs[2].mime, data:imgs[2].b64 }, cache_control:{ type:'ephemeral' } });
+  content.push({ type:'text', text:txt });
+
+  setLoading(true); hideError();
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('copy-all-row').style.display = 'none';
+
+  try {
+    const HEADERS = {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    };
+    const TOOLS = [{ type: 'web_search_20250305', name: 'web_search' }];
+
+    // system prompt as array with cache_control — cached after first call
+    const SYSTEM = [{ type: 'text', text: SYS, cache_control: { type: 'ephemeral' } }];
+
+    // ── round 1: initial request ──────────────────────────
+    setStatus('מחפש מידע על הפריט...');
+    let messages = [{ role: 'user', content }];
+    let res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:4000, system:SYSTEM, tools:TOOLS, messages })
+    });
+    if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`שגיאה ${res.status}`); }
+    let data = await res.json();
+
+    // ── agentic loop: keep going while model uses tools ───
+    let rounds = 0;
+    while (data.stop_reason === 'tool_use' && rounds < 5) {
+      rounds++;
+      const toolUseBlocks = data.content.filter(b => b.type === 'tool_use');
+      setStatus(`מחפש מידע... (חיפוש ${rounds})`);
+
+      // append assistant turn
+      messages = [...messages, { role: 'assistant', content: data.content }];
+
+      // build tool results
+      const toolResults = toolUseBlocks.map(tb => ({
+        type: 'tool_result',
+        tool_use_id: tb.id,
+        content: tb.type === 'web_search' ? JSON.stringify(tb.output || []) : '[]'
+      }));
+      messages = [...messages, { role: 'user', content: toolResults }];
+
+      setStatus(rounds < 3 ? 'מעמיק במחקר...' : 'כותב כתבה...');
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: HEADERS,
+        body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:4000, system:SYSTEM, tools:TOOLS, messages })
+      });
+      if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`שגיאה ${res.status}`); }
+      data = await res.json();
+    }
+
+    // ── extract final text ────────────────────────────────
+    setStatus('מעבד תוצאות...');
+    const finalText = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    const jsonMatch = finalText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('לא התקבל JSON מקלוד — נסה שוב');
+    const clean = jsonMatch[0].replace(/```json|```/g,'').trim();
+    const result = JSON.parse(clean);
+
+    // ── editing rounds: fix Hebrew grammar ───────────────
+    const EDIT_SYS = [{ type:'text', text:`אתה עורך לשוני מומחה בעברית. תפקידך לתקן שגיאות דקדוק בלבד — אין לשנות תוכן, עובדות, מבנה או סגנון.
+
+תקן:
+- התאמת זכר/נקבה (פעלים, שמות תואר, כינויים)
+- צורות פועל שגויות
+- אותיות חסרות או מיותרות
+- סימני פיסוק לקויים
+
+אל תשנה:
+- שמות עצם ומונחים מקצועיים
+- מקפים קצרים (-)
+- מבנה הפסקאות
+- כותרות ביניים (## כותרת)
+
+החזר JSON בלבד עם אותו מבנה בדיוק, עם שדה "article" מתוקן בלבד. ללא טקסט נוסף.`, cache_control:{type:'ephemeral'} }];
+
+    let editedArticle = result.article;
+    for (let editRound = 1; editRound <= 2; editRound++) {
+      setStatus(`עריכה לשונית (סבב ${editRound}/2)...`);
+      const editRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers:HEADERS,
+        body: JSON.stringify({
+          model:'claude-opus-4-5', max_tokens:3000,
+          system: EDIT_SYS,
+          messages:[{ role:'user', content:`{"article": ${JSON.stringify(editedArticle)}}` }]
+        })
+      });
+      if (editRes.ok) {
+        const editData = await editRes.json();
+        const editText = editData.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+        const editMatch = editText.match(/\{[\s\S]*\}/);
+        if (editMatch) {
+          try {
+            const editJson = JSON.parse(editMatch[0]);
+            if (editJson.article) editedArticle = editJson.article;
+          } catch(e) { /* keep previous */ }
+        }
+      }
+    }
+    result.article = editedArticle;
+    renderResults(result);
+
+  } catch(e) {
+    showError('שגיאה: ' + e.message);
+  } finally {
+    setLoading(false); setStatus('');
+  }
+}
+
+// ── RENDER ───────────────────────────────────────────────
+const copyStore = {}; // store text by id to avoid inline JSON issues
+
+function renderResults(r) {
+  const wrap = document.getElementById('results');
+  wrap.innerHTML = '';
+  const hasBack = !!imgs[2].b64;
+
+  const fields = [
+    { key:'title',      label:'כותרת',              icon:'✦', cls:'ic-title',   type:'plain' },
+    { key:'meta',       label:'מטא תיאור SEO',       icon:'◎', cls:'ic-meta',    type:'plain' },
+    { key:'tags',       label:'תגיות',               icon:'◈', cls:'ic-tags',    type:'tags'  },
+    { key:'alt_front',  label:'ALT — תמונה חזית',   icon:'⊡', cls:'ic-alt',     type:'plain' },
+    ...(hasBack ? [{ key:'alt_back', label:'ALT — תמונה גב', icon:'⊟', cls:'ic-alt', type:'plain' }] : []),
+    { key:'article',    label:'הכתבה המלאה',         icon:'❖', cls:'ic-article', type:'article'},
+  ];
+
+  fields.forEach((f, i) => {
+    let v = r[f.key];
+    if (!v && f.key === 'alt_front') v = r['alt'];
+    if (!v) return;
+
+    const copyText = Array.isArray(v) ? v.join(', ') :
+                     (f.type === 'article' ? articleToPlain(v) : v);
+    const id = 'field_' + i;
+    copyStore[id] = copyText;
+
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.style.animationDelay = (i * 0.06) + 's';
+
+    let body = '';
+    if (f.type === 'tags') {
+      body = `<div class="rc-body">${esc(copyText)}</div>`;
+    } else if (f.type === 'article') {
+      body = `<div class="rc-body article">${articleToHtml(copyText)}</div>`;
+    } else {
+      body = `<div class="rc-body">${esc(copyText)}</div>`;
+    }
+
+    card.innerHTML = `
+      <div class="rc-head">
+        <span class="rc-label"><span class="rc-icon ${f.cls}">${f.icon}</span>${f.label}</span>
+        <button class="copy-btn" data-id="${id}" onclick="copyOne(this)">העתק</button>
+      </div>${body}`;
+    wrap.appendChild(card);
+  });
+
+  // Midjourney — 3 separate cards
+  const mjArr = Array.isArray(r.midjourney) ? r.midjourney : (r.midjourney ? [r.midjourney] : []);
+  mjArr.forEach((prompt, i) => {
+    if (!prompt) return;
+    const id = 'mj_' + i;
+    copyStore[id] = prompt;
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.style.animationDelay = ((fields.length + i) * 0.06) + 's';
+    card.innerHTML = `
+      <div class="rc-head">
+        <span class="rc-label"><span class="rc-icon ic-mj">◉</span>פרומפט Midjourney ${i + 1}</span>
+        <button class="copy-btn" data-id="${id}" onclick="copyOne(this)">העתק</button>
+      </div>
+      <div class="prompt-body">${esc(prompt)}</div>`;
+    wrap.appendChild(card);
+  });
+
+  document.getElementById('copy-all-row').style.display = 'block';
+  window._res = r;
+}
+
+function articleToHtml(text) {
+  return text
+    .split(/\n\n+/)
+    .map(para => {
+      para = para.trim();
+      if (!para) return '';
+      if (para.startsWith('## ')) return `<h3 style="font-size:15px;font-weight:600;margin:12px 0 4px;color:var(--ink)">${esc(para.slice(3))}</h3>`;
+      return `<p style="margin-bottom:10px">${esc(para)}</p>`;
+    })
+    .join('');
+}
+
+function articleToPlain(text) {
+  // strip ## prefix from headers, keep double newlines
+  return text
+    .split(/\n\n+/)
+    .map(para => {
+      para = para.trim();
+      if (para.startsWith('## ')) return para.slice(3); // header without ##
+      return para;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function copyOne(btn) {
+  const text = copyStore[btn.dataset.id];
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.classList.add('done'); btn.textContent = '✓ הועתק';
+    setTimeout(() => { btn.classList.remove('done'); btn.textContent = 'העתק'; }, 2000);
+  } catch(e) { alert('העתקה נכשלה — נסה Ctrl+C'); }
+}
+
+async function copyAll() {
+  if (!window._res) return;
+  const r = window._res;
+  const t = [`כותרת:\n${r.title}`,`\nמטא תיאור:\n${r.meta}`,`\nתגיות:\n${Array.isArray(r.tags)?r.tags.join(', '):r.tags}`,`\nALT:\n${r.alt}`,`\nMidjourney:\n${r.midjourney}`,`\nכתבה:\n${r.article}`].join('\n');
+  try {
+    await navigator.clipboard.writeText(t);
+    const btn = document.querySelector('.copy-all-btn');
+    btn.textContent='✓ הכל הועתק!';
+    setTimeout(()=>btn.textContent='↓ העתק הכל לקליפבורד', 2500);
+  } catch(e) { alert('העתקה נכשלה'); }
+}
+
+function setLoading(on) {
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = on;
+  document.getElementById('btn-text').textContent = on ? 'כותב...' : '✦ ייצר חומרים לפוסט';
+  let sp = btn.querySelector('.spinner');
+  if (on && !sp) { sp=document.createElement('div'); sp.className='spinner'; btn.appendChild(sp); }
+  if (!on && sp) sp.remove();
+}
+function setStatus(msg) { const el=document.getElementById('status-line'); el.textContent=msg; el.className=msg?'status-line on':'status-line'; }
+function showError(msg) { const el=document.getElementById('error-bar'); el.textContent=msg; el.style.display='block'; }
+function hideError() { document.getElementById('error-bar').style.display='none'; }
+
+document.addEventListener('keydown', e => { if(e.ctrlKey&&e.key==='Enter') generate(); });
+</script>
+</body>
+</html>
