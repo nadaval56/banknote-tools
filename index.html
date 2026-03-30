@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>מחולל פוסטים — Banknote</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
 <style>
 :root {
   --bg: #f0eeea;
@@ -176,6 +178,23 @@ header {
   color: white; font-size: 11px; padding: 3px 8px; cursor: pointer;
   font-family: 'DM Sans', sans-serif;
 }
+.slot-download {
+  display: none; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); z-index: 4;
+  background: var(--green); border: none; border-radius: 5px;
+  color: white; font-size: 11px; padding: 4px 10px; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+.slot-download:hover { background: #2f7a4d; }
+.drive-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--blue-soft); border: 1.5px solid #c5d8f5;
+  border-radius: 7px; color: var(--blue);
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+  padding: 5px 11px; cursor: pointer; transition: all 0.15s;
+  margin-top: 4px; z-index: 3; position: relative;
+}
+.drive-btn:hover { background: #d8e8fb; border-color: var(--blue); }
 
 /* FIELDS */
 .fields-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
@@ -261,6 +280,9 @@ header {
   padding: 13px; cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
 }
 .copy-all-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* תיקון זום לחלון Drive Picker */
+.picker-dialog, .picker-dialog-bg { zoom: 0.667 !important; }
 </style>
 </head>
 <body>
@@ -308,12 +330,14 @@ header {
       <div class="upload-slot" id="slot1">
         <input type="file" accept="image/*" onchange="handleImg(event,1)">
         <button class="slot-remove" id="rm1" onclick="removeImg(event,1)">✕ הסר</button>
+        <button class="slot-download" id="dl1" onclick="downloadWebP(event,1)">↓ WebP</button>
         <span class="slot-badge">חזית</span>
         <img class="slot-preview" id="prev1" alt="">
         <div class="slot-ph" id="ph1">
           <div class="slot-icon">🖼️</div>
           <div class="slot-label">תמונה ראשית</div>
           <div class="slot-sub">חזית / צד א׳</div>
+          <button class="drive-btn" onclick="openDrivePicker(event,1)">📂 בחר מ-Drive</button>
         </div>
       </div>
 
@@ -321,12 +345,14 @@ header {
       <div class="upload-slot optional" id="slot2">
         <input type="file" accept="image/*" onchange="handleImg(event,2)">
         <button class="slot-remove" id="rm2" onclick="removeImg(event,2)">✕ הסר</button>
+        <button class="slot-download" id="dl2" onclick="downloadWebP(event,2)">↓ WebP</button>
         <span class="slot-badge opt">גב — אופציונלי</span>
         <img class="slot-preview" id="prev2" alt="">
         <div class="slot-ph" id="ph2">
           <div class="slot-icon">🔄</div>
           <div class="slot-label">תמונת גב</div>
           <div class="slot-sub">גב / צד ב׳ (לא חובה)</div>
+          <button class="drive-btn" onclick="openDrivePicker(event,2)">📂 בחר מ-Drive</button>
         </div>
       </div>
     </div>
@@ -396,6 +422,86 @@ document.getElementById('modal-key').addEventListener('keydown',e=>{ if(e.key===
 
 // ── IMAGES ───────────────────────────────────────────────
 const imgs = { 1: { b64: null, mime: null }, 2: { b64: null, mime: null } };
+const webpBlobs = { 1: null, 2: null };
+
+// ── GOOGLE DRIVE PICKER ──────────────────────────────────
+const GAPI_KEY    = 'AIzaSyCcsNvfgxlBLkyg8SRO6Gs2yi44VipbG4s';
+const CLIENT_ID   = '854067952718-m0pdh0b6159ditbt0o74qj0ld8m6ssp2.apps.googleusercontent.com';
+const SCOPES      = 'https://www.googleapis.com/auth/drive.readonly';
+let   pickerApiLoaded = false;
+let   oauthToken      = null;
+let   activePickerSlot = 1;
+
+function loadPickerApi() {
+  return new Promise(resolve => {
+    if (pickerApiLoaded) { resolve(); return; }
+    gapi.load('picker', () => { pickerApiLoaded = true; resolve(); });
+  });
+}
+
+function getOAuthToken() {
+  return new Promise((resolve, reject) => {
+    if (oauthToken) { resolve(oauthToken); return; }
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: resp => {
+        if (resp.error) { reject(resp.error); return; }
+        oauthToken = resp.access_token;
+        resolve(oauthToken);
+      }
+    });
+    client.requestAccessToken({ prompt: 'consent' });
+  });
+}
+
+async function openDrivePicker(e, slot) {
+  e.preventDefault(); e.stopPropagation();
+  activePickerSlot = slot;
+  try {
+    await loadPickerApi();
+    const token = await getOAuthToken();
+    const view = new google.picker.View(google.picker.ViewId.DOCS_IMAGES);
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(token)
+      .setDeveloperKey(GAPI_KEY)
+      .setCallback(pickerCallback)
+      .build();
+    picker.setVisible(true);
+  } catch(err) {
+    alert('שגיאה בפתיחת Drive: ' + err);
+  }
+}
+
+async function pickerCallback(data) {
+  if (data.action !== google.picker.Action.PICKED) return;
+  const file = data.docs[0];
+  const fileId = file.id;
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${oauthToken}` } }
+    );
+    if (!resp.ok) throw new Error('שגיאה בהורדת קובץ מ-Drive');
+    const blob = await resp.blob();
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const src = ev.target.result;
+      const slot = activePickerSlot;
+      document.getElementById('prev'+slot).src = src;
+      document.getElementById('prev'+slot).style.display = 'block';
+      document.getElementById('ph'+slot).style.display = 'none';
+      document.getElementById('rm'+slot).style.display = 'block';
+      document.getElementById('dl'+slot).style.display = 'block';
+      document.getElementById('slot'+slot).classList.add('has-img');
+      compressImage(src, slot);
+    };
+    reader.readAsDataURL(blob);
+  } catch(err) {
+    alert('שגיאה: ' + err.message);
+  }
+}
 
 function handleImg(e, slot) {
   const file = e.target.files[0]; if (!file) return;
@@ -407,6 +513,7 @@ function handleImg(e, slot) {
     document.getElementById('prev'+slot).style.display = 'block';
     document.getElementById('ph'+slot).style.display = 'none';
     document.getElementById('rm'+slot).style.display = 'block';
+    document.getElementById('dl'+slot).style.display = 'block';
     document.getElementById('slot'+slot).classList.add('has-img');
     // compress via canvas before storing
     compressImage(src, slot);
@@ -436,6 +543,7 @@ function compressImage(src, slot) {
     }
     imgs[slot].b64 = dataUrl.split(',')[1];
     imgs[slot].mime = 'image/jpeg';
+    canvas.toBlob(blob => { webpBlobs[slot] = blob; }, 'image/webp', 0.85);
   };
   img.src = src;
 }
@@ -443,12 +551,27 @@ function compressImage(src, slot) {
 function removeImg(e, slot) {
   e.preventDefault(); e.stopPropagation();
   imgs[slot].b64 = null; imgs[slot].mime = null;
+  webpBlobs[slot] = null;
   document.getElementById('prev'+slot).style.display = 'none';
   document.getElementById('prev'+slot).src = '';
   document.getElementById('ph'+slot).style.display = 'flex';
   document.getElementById('rm'+slot).style.display = 'none';
+  document.getElementById('dl'+slot).style.display = 'none';
   document.getElementById('slot'+slot).classList.remove('has-img');
   document.getElementById('slot'+slot).querySelector('input').value = '';
+}
+
+function downloadWebP(e, slot) {
+  e.preventDefault(); e.stopPropagation();
+  const blob = webpBlobs[slot];
+  if (!blob) return;
+  const name = slot === 1 ? 'front.webp' : 'back.webp';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ── SYSTEM PROMPT ────────────────────────────────────────
@@ -622,11 +745,31 @@ async function generate() {
     const finalText = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
     const jsonMatch = finalText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('לא התקבל JSON מקלוד — נסה שוב');
-    const clean = jsonMatch[0]
-      .replace(/```json|```/g,'')
-      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '') // strip bad control chars
-      .trim();
-    const result = JSON.parse(clean);
+    // תיקון עמיד לתווי בקרה ב-JSON שמגיע מקלוד
+    let rawJson = jsonMatch[0].replace(/```json|```/g,'').trim();
+    // שיטה: עבור תו תו, כשאנחנו בתוך string — המר תווי בקרה ליטרליים
+    function sanitizeJson(s) {
+      let out = '', inStr = false, escape = false;
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (escape) { out += c; escape = false; continue; }
+        if (c === '\\') { out += c; escape = true; continue; }
+        if (c === '"' && inStr) { inStr = false; out += c; continue; }
+        if (c === '"') { inStr = true; out += c; continue; }
+        if (inStr) {
+          const code = c.charCodeAt(0);
+          if (code < 0x20) {
+            if (code === 0x0A) { out += '\\n'; continue; }
+            if (code === 0x0D) { out += '\\r'; continue; }
+            if (code === 0x09) { out += '\\t'; continue; }
+            continue; // drop other control chars
+          }
+        }
+        out += c;
+      }
+      return out;
+    }
+    const result = JSON.parse(sanitizeJson(rawJson));
 
     // ── editing rounds: fix Hebrew grammar ───────────────
     const EDIT_SYS = [{ type:'text', text:`אתה עורך לשוני מומחה בעברית. תפקידך לתקן שגיאות דקדוק בלבד — אין לשנות תוכן, עובדות, מבנה או סגנון.
