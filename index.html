@@ -280,6 +280,13 @@ header {
   padding: 13px; cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
 }
 .copy-all-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.dl-sources-btn {
+  background: none; border: 1.5px solid var(--border); border-radius: 12px;
+  color: var(--ink2); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  padding: 13px 18px; cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+.dl-sources-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
 
 /* תיקון זום לחלון Drive Picker */
 .picker-dialog, .picker-dialog-bg { zoom: 0.667 !important; }
@@ -397,13 +404,17 @@ header {
 
   </div><!-- /card -->
 
-  <div class="copy-all-row" id="copy-all-row">
+  <div class="copy-all-row" id="copy-all-row" style="display:none; gap:10px;">
     <button class="copy-all-btn" onclick="copyAll()">↓ העתק הכל לקליפבורד</button>
+    <button class="dl-sources-btn" id="dl-sources-btn" onclick="downloadSources()" style="display:none;">📄 הורד מקורות</button>
   </div>
   <div class="results" id="results"></div>
 </div>
 
 <script>
+// ── SOURCES STORE ───────────────────────────────────────
+let collectedSources = [];
+
 // ── API KEY ──────────────────────────────────────────────
 let apiKey = localStorage.getItem('bnk_api_key') || '';
 updateKeyUI();
@@ -689,6 +700,8 @@ async function generate() {
   setLoading(true); hideError();
   document.getElementById('results').innerHTML = '';
   document.getElementById('copy-all-row').style.display = 'none';
+  collectedSources = [];
+  document.getElementById('dl-sources-btn').style.display = 'none';
 
   try {
     const HEADERS = {
@@ -722,6 +735,21 @@ async function generate() {
 
       // append assistant turn
       messages = [...messages, { role: 'assistant', content: data.content }];
+
+      // collect search sources for download
+      toolUseBlocks.forEach(tb => {
+        if (tb.type === 'web_search' && tb.input && tb.input.query) {
+          const results = tb.output || [];
+          collectedSources.push({
+            query: tb.input.query,
+            results: results.map(r => ({
+              title: r.title || '',
+              url: r.url || '',
+              content: r.content || r.snippet || ''
+            }))
+          });
+        }
+      });
 
       // build tool results
       const toolResults = toolUseBlocks.map(tb => ({
@@ -887,7 +915,8 @@ function renderResults(r) {
     wrap.appendChild(card);
   });
 
-  document.getElementById('copy-all-row').style.display = 'block';
+  document.getElementById('copy-all-row').style.display = 'flex';
+  if (collectedSources.length > 0) document.getElementById('dl-sources-btn').style.display = 'block';
   window._res = r;
 }
 
@@ -926,6 +955,39 @@ async function copyOne(btn) {
     btn.classList.add('done'); btn.textContent = '✓ הועתק';
     setTimeout(() => { btn.classList.remove('done'); btn.textContent = 'העתק'; }, 2000);
   } catch(e) { alert('העתקה נכשלה — נסה Ctrl+C'); }
+}
+
+function downloadSources() {
+  if (!collectedSources.length) return;
+  let txt = 'מקורות חיפוש שנאספו על ידי קלוד
+';
+  txt += '='.repeat(50) + '
+
+';
+  collectedSources.forEach((s, i) => {
+    txt += 'חיפוש ' + (i+1) + ': ' + s.query + '
+';
+    txt += '-'.repeat(40) + '
+';
+    s.results.forEach((r, j) => {
+      txt += '
+[' + (j+1) + '] ' + (r.title || 'ללא כותרת') + '
+';
+      if (r.url) txt += 'URL: ' + r.url + '
+';
+      if (r.content) txt += r.content + '
+';
+    });
+    txt += '
+';
+  });
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sources.txt';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function copyAll() {
