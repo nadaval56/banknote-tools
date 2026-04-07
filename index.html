@@ -673,6 +673,29 @@ const SYS = `אתה עורך תוכן מנוסה של אתר banknote.co.il — 
   "article": "הכתבה המלאה, פסקאות מופרדות בירידת שורה כפולה, עם 2-3 כותרות ביניים ## כותרת"
 }`;
 
+// ── JSON SANITIZER ──────────────────────────────────────
+function sanitizeJson(s) {
+  let out = '', inStr = false, escape = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (escape) { out += c; escape = false; continue; }
+    if (c === '\\') { out += c; escape = true; continue; }
+    if (c === '"' && inStr) { inStr = false; out += c; continue; }
+    if (c === '"') { inStr = true; out += c; continue; }
+    if (inStr) {
+      const code = c.charCodeAt(0);
+      if (code < 0x20) {
+        if (code === 0x0A) { out += '\\n'; continue; }
+        if (code === 0x0D) { out += '\\r'; continue; }
+        if (code === 0x09) { out += '\\t'; continue; }
+        continue;
+      }
+    }
+    out += c;
+  }
+  return out;
+}
+
 // ── GENERATE ─────────────────────────────────────────────
 async function generate() {
   if (!apiKey.startsWith('sk-ant-')) { openModal(); return; }
@@ -773,31 +796,7 @@ async function generate() {
     const finalText = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
     const jsonMatch = finalText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('לא התקבל JSON מקלוד — נסה שוב');
-    // תיקון עמיד לתווי בקרה ב-JSON שמגיע מקלוד
-    let rawJson = jsonMatch[0].replace(/```json|```/g,'').trim();
-    // שיטה: עבור תו תו, כשאנחנו בתוך string — המר תווי בקרה ליטרליים
-    function sanitizeJson(s) {
-      let out = '', inStr = false, escape = false;
-      for (let i = 0; i < s.length; i++) {
-        const c = s[i];
-        if (escape) { out += c; escape = false; continue; }
-        if (c === '\\') { out += c; escape = true; continue; }
-        if (c === '"' && inStr) { inStr = false; out += c; continue; }
-        if (c === '"') { inStr = true; out += c; continue; }
-        if (inStr) {
-          const code = c.charCodeAt(0);
-          if (code < 0x20) {
-            if (code === 0x0A) { out += '\\n'; continue; }
-            if (code === 0x0D) { out += '\\r'; continue; }
-            if (code === 0x09) { out += '\\t'; continue; }
-            continue; // drop other control chars
-          }
-        }
-        out += c;
-      }
-      return out;
-    }
-    const result = JSON.parse(sanitizeJson(rawJson));
+    const result = JSON.parse(sanitizeJson(jsonMatch[0].replace(/```json|```/g,'').trim()));
 
     // ── editing rounds: fix Hebrew grammar ───────────────
     const EDIT_SYS = [{ type:'text', text:`אתה עורך לשוני מומחה בעברית. תפקידך לתקן שגיאות דקדוק בלבד — אין לשנות תוכן, עובדות, מבנה או סגנון.
@@ -1016,5 +1015,7 @@ function hideError() { document.getElementById('error-bar').style.display='none'
 
 document.addEventListener('keydown', e => { if(e.ctrlKey&&e.key==='Enter') generate(); });
 </script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 </html>
