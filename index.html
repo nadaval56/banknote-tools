@@ -958,35 +958,25 @@ async function copyOne(btn) {
 
 function downloadSources() {
   if (!collectedSources.length) return;
-  let txt = 'מקורות חיפוש שנאספו על ידי קלוד
-';
-  txt += '='.repeat(50) + '
-
-';
-  collectedSources.forEach((s, i) => {
-    txt += 'חיפוש ' + (i+1) + ': ' + s.query + '
-';
-    txt += '-'.repeat(40) + '
-';
-    s.results.forEach((r, j) => {
-      txt += '
-[' + (j+1) + '] ' + (r.title || 'ללא כותרת') + '
-';
-      if (r.url) txt += 'URL: ' + r.url + '
-';
-      if (r.content) txt += r.content + '
-';
+  let txt = '\u05de\u05e7\u05d5\u05e8\u05d5\u05ea \u05d7\u05d9\u05e4\u05d5\u05e9 \u05e9\u05e0\u05d0\u05e1\u05e4\u05d5 \u05e2\u05dc \u05d9\u05d3\u05d9 \u05e7\u05dc\u05d5\u05d3\n';
+  txt += '='.repeat(50) + '\n\n';
+  collectedSources.forEach(function(s, i) {
+    txt += '\u05d7\u05d9\u05e4\u05d5\u05e9 ' + (i+1) + ': ' + s.query + '\n';
+    txt += '-'.repeat(40) + '\n';
+    s.results.forEach(function(r, j) {
+      txt += '\n[' + (j+1) + '] ' + (r.title || '') + '\n';
+      if (r.url) txt += 'URL: ' + r.url + '\n';
+      if (r.content) txt += r.content + '\n';
     });
-    txt += '
-';
+    txt += '\n';
   });
-  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
   a.href = url; a.download = 'sources.txt';
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 }
 
 async function copyAll() {
