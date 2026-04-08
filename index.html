@@ -759,19 +759,20 @@ async function generate() {
       // append assistant turn
       messages = [...messages, { role: 'assistant', content: data.content }];
 
-      // collect search sources for download
-      toolUseBlocks.forEach(tb => {
-        if (tb.type === 'web_search' && tb.input && tb.input.query) {
-          const results = tb.output || [];
-          collectedSources.push({
-            query: tb.input.query,
-            results: results.map(r => ({
-              title: r.title || '',
-              url: r.url || '',
-              content: r.content || r.snippet || ''
-            }))
-          });
-        }
+      // collect search sources — server_tool_use for query, web_search_tool_result for results
+      const serverToolUse = data.content.filter(b => b.type === 'server_tool_use' && b.name === 'web_search');
+      const searchResults = data.content.filter(b => b.type === 'web_search_tool_result');
+      serverToolUse.forEach((tb, i) => {
+        const resultBlock = searchResults[i];
+        const results = resultBlock ? (resultBlock.content || []) : [];
+        collectedSources.push({
+          query: tb.input && tb.input.query ? tb.input.query : '(חיפוש)',
+          results: results.map(r => ({
+            title: r.title || '',
+            url: r.url || '',
+            page_age: r.page_age || ''
+          }))
+        });
       });
 
       // build tool results
