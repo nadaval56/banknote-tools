@@ -759,11 +759,11 @@ async function generate() {
       // append assistant turn
       messages = [...messages, { role: 'assistant', content: data.content }];
 
-      // collect search sources — server_tool_use for query, web_search_tool_result for results
-      const serverToolUse = data.content.filter(b => b.type === 'server_tool_use' && b.name === 'web_search');
-      const searchResults = data.content.filter(b => b.type === 'web_search_tool_result');
-      serverToolUse.forEach((tb, i) => {
-        const resultBlock = searchResults[i];
+      // collect search sources from every round
+      const svrUse = data.content.filter(b => b.type === 'server_tool_use' && b.name === 'web_search');
+      const svrRes = data.content.filter(b => b.type === 'web_search_tool_result');
+      svrUse.forEach((tb, i) => {
+        const resultBlock = svrRes[i];
         const results = resultBlock ? (resultBlock.content || []) : [];
         collectedSources.push({
           query: tb.input && tb.input.query ? tb.input.query : '(חיפוש)',
