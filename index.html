@@ -741,7 +741,7 @@ async function generate() {
 
     // ── round 1: initial request ──────────────────────────
     setStatus('מחפש מידע על הפריט...');
-    let messages = [{ role: 'user', content }];
+    let messages = [{ role: 'user', content }]; window._messages = messages;
     let res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:4000, system:SYSTEM, tools:TOOLS, messages })
@@ -790,7 +790,9 @@ async function generate() {
       });
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`שגיאה ${res.status}`); }
       data = await res.json();
+      window._lastData = data; // debug
     }
+    window._lastData = data; // debug
 
     // ── extract final text ────────────────────────────────
     setStatus('מעבד תוצאות...');
