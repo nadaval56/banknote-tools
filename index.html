@@ -675,6 +675,9 @@ const SYS = `אתה עורך תוכן מנוסה של אתר banknote.co.il — 
 
 // ── JSON SANITIZER ──────────────────────────────────────
 function sanitizeJson(s) {
+  // שלב 1: נסה פרסור ישיר
+  try { JSON.parse(s); return s; } catch(e) {}
+  // שלב 2: תקן תווי בקרה בתוך strings
   let out = '', inStr = false, escape = false;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
@@ -693,7 +696,10 @@ function sanitizeJson(s) {
     }
     out += c;
   }
-  return out;
+  // שלב 3: אם עדיין לא עובד — נסה regex גס
+  try { JSON.parse(out); return out; } catch(e) {
+    return out.replace(/[\x00-\x1F\x7F]/g, ' ');
+  }
 }
 
 // ── GENERATE ─────────────────────────────────────────────
