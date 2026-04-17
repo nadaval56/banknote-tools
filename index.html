@@ -727,11 +727,14 @@ function sanitizeJson(s) {
 
 // ── BUILD REQUEST WITH OPTIONAL THINKING ────────────────
 function buildBody(model, max_tokens, system, tools, messages, useThinking) {
-  const body = { model, max_tokens, system, messages };
+  const effectiveMaxTokens = useThinking ? Math.max(max_tokens, 8000) : max_tokens;
+  const body = { model, effectiveMaxTokens, system, messages };
+  body.max_tokens = effectiveMaxTokens;
+  delete body.effectiveMaxTokens;
   if (tools) body.tools = tools;
   if (useThinking) {
     body.thinking = { type: 'enabled', budget_tokens: 5000 };
-    body.temperature = 1; // חובה עם thinking
+    body.temperature = 1;
   }
   return JSON.stringify(body);
 }
