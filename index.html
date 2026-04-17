@@ -287,6 +287,14 @@ header {
   white-space: nowrap;
 }
 .dl-sources-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+.think-btn {
+  background: none; border: 1.5px solid #d4b8f0; border-radius: 12px;
+  color: #7c4daa; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  padding: 13px 18px; cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+.think-btn:hover { border-color: #7c4daa; background: #f5eeff; }
+.think-btn.active { background: #7c4daa; color: white; border-color: #7c4daa; }
 
 /* תיקון זום לחלון Drive Picker */
 .picker-dialog, .picker-dialog-bg { zoom: 0.667 !important; }
@@ -404,6 +412,10 @@ header {
 
   </div><!-- /card -->
 
+  <div style="display:flex; gap:10px; margin-bottom:8px; align-items:center;">
+    <button class="think-btn" id="think-btn" onclick="toggleThinking()" title="מפעיל חשיבה מעמיקה — מומלץ לפריטים נדירים">🧠 חשיבה מעמיקה</button>
+    <span id="think-lbl" style="font-size:11px;color:var(--ink3);">כבוי — מפעיל עלות גבוהה יותר</span>
+  </div>
   <div class="copy-all-row" id="copy-all-row" style="display:none; gap:10px;">
     <button class="copy-all-btn" onclick="copyAll()">↓ העתק הכל לקליפבורד</button>
     <button class="dl-sources-btn" id="dl-sources-btn" onclick="downloadSources()" style="display:none;">📄 הורד מקורות</button>
@@ -412,6 +424,18 @@ header {
 </div>
 
 <script>
+// ── THINKING MODE ───────────────────────────────────────
+let thinkingEnabled = false;
+function toggleThinking() {
+  thinkingEnabled = !thinkingEnabled;
+  const btn = document.getElementById('think-btn');
+  const lbl = document.getElementById('think-lbl');
+  btn.classList.toggle('active', thinkingEnabled);
+  lbl.textContent = thinkingEnabled
+    ? 'פעיל — חשיבה מעמיקה (~5000 טוקני מחשבה)'
+    : 'כבוי — מפעיל עלות גבוהה יותר';
+}
+
 // ── SOURCES STORE ───────────────────────────────────────
 let collectedSources = [];
 
@@ -702,6 +726,17 @@ function sanitizeJson(s) {
   }
 }
 
+// ── BUILD REQUEST WITH OPTIONAL THINKING ────────────────
+function buildBody(model, max_tokens, system, tools, messages, useThinking) {
+  const body = { model, max_tokens, system, messages };
+  if (tools) body.tools = tools;
+  if (useThinking) {
+    body.thinking = { type: 'enabled', budget_tokens: 5000 };
+    body.temperature = 1; // חובה עם thinking
+  }
+  return JSON.stringify(body);
+}
+
 // ── GENERATE ─────────────────────────────────────────────
 async function generate() {
   if (!apiKey.startsWith('sk-ant-')) { openModal(); return; }
@@ -750,7 +785,7 @@ async function generate() {
     let messages = [{ role: 'user', content }]; window._messages = messages;
     let res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: HEADERS,
-      body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:4000, system:SYSTEM, tools:TOOLS, messages })
+      body: buildBody('claude-opus-4-5', 4000, SYSTEM, TOOLS, messages, thinkingEnabled)
     });
     if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`שגיאה ${res.status}`); }
     let data = await res.json();
@@ -804,7 +839,27 @@ async function generate() {
     setStatus('מעבד תוצאות...');
     const finalText = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
     const jsonMatch = finalText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('לא התקבל JSON מקלוד — נסה שוב');
+    if (!jsonMatch) {
+      if (!thinkingEnabled) {
+        // retry אוטומטי עם thinking
+        setStatus('JSON ריק — מנסה שוב עם חשיבה מעמיקה...');
+        const retryRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST', headers: HEADERS,
+          body: buildBody('claude-sonnet-4-5', 16000, SYSTEM, TOOLS, messages, true)
+        });
+        if (retryRes.ok) {
+          const retryData = await retryRes.json();
+          const retryText = retryData.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+          const retryMatch = retryText.match(/\{[\s\S]*\}/);
+          if (retryMatch) {
+            const retryResult = JSON.parse(sanitizeJson(retryMatch[0].replace(/```json|```/g,'').trim()));
+            retryResult.article && renderResults(retryResult);
+            return;
+          }
+        }
+      }
+      throw new Error('לא התקבל JSON מקלוד — נסה שוב');
+    }
     const result = JSON.parse(sanitizeJson(jsonMatch[0].replace(/```json|```/g,'').trim()));
 
     // ── editing rounds: fix Hebrew grammar ───────────────
