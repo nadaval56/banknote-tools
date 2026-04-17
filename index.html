@@ -289,12 +289,11 @@ header {
 .dl-sources-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
 .think-btn {
   background: none; border: 1.5px solid #d4b8f0; border-radius: 12px;
-  color: #7c4daa; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
-  padding: 13px 18px; cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
-  white-space: nowrap;
+  color: #7c4daa; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
 }
 .think-btn:hover { border-color: #7c4daa; background: #f5eeff; }
-.think-btn.active { background: #7c4daa; color: white; border-color: #7c4daa; }
+.think-btn.active { background: #7c4daa; color: white; border-color: #5a3080; }
 
 /* תיקון זום לחלון Drive Picker */
 .picker-dialog, .picker-dialog-bg { zoom: 0.667 !important; }
@@ -406,16 +405,16 @@ header {
     <div class="error-bar" id="error-bar"></div>
     <div class="status-line" id="status-line"></div>
 
+    <button class="think-btn" id="think-btn" onclick="toggleThinking()"
+      style="margin: 0 24px 8px; width: calc(100% - 48px); padding: 11px; display:flex; align-items:center; justify-content:center; gap:8px;">
+      🧠 <span id="think-lbl">חשיבה מעמיקה — כבוי</span>
+    </button>
     <button class="gen-btn" id="gen-btn" onclick="generate()">
       <span id="btn-text">✦ ייצר חומרים לפוסט</span>
     </button>
 
   </div><!-- /card -->
 
-  <div style="display:flex; gap:10px; margin-bottom:8px; align-items:center;">
-    <button class="think-btn" id="think-btn" onclick="toggleThinking()" title="מפעיל חשיבה מעמיקה — מומלץ לפריטים נדירים">🧠 חשיבה מעמיקה</button>
-    <span id="think-lbl" style="font-size:11px;color:var(--ink3);">כבוי — מפעיל עלות גבוהה יותר</span>
-  </div>
   <div class="copy-all-row" id="copy-all-row" style="display:none; gap:10px;">
     <button class="copy-all-btn" onclick="copyAll()">↓ העתק הכל לקליפבורד</button>
     <button class="dl-sources-btn" id="dl-sources-btn" onclick="downloadSources()" style="display:none;">📄 הורד מקורות</button>
@@ -432,8 +431,8 @@ function toggleThinking() {
   const lbl = document.getElementById('think-lbl');
   btn.classList.toggle('active', thinkingEnabled);
   lbl.textContent = thinkingEnabled
-    ? 'פעיל — חשיבה מעמיקה (~5000 טוקני מחשבה)'
-    : 'כבוי — מפעיל עלות גבוהה יותר';
+    ? 'חשיבה מעמיקה — פעיל ✓'
+    : 'חשיבה מעמיקה — כבוי';
 }
 
 // ── SOURCES STORE ───────────────────────────────────────
